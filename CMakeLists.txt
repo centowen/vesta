@@ -1,0 +1,7 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+PROJECT(vesta)
+FIND_PACKAGE(Ceres REQUIRED PATHS "/home/lindroos/sw/")
+INCLUDE_DIRECTORIES(${CERES_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(/home/lindroos/jobb/stacker/stacker_clib)
+ADD_EXECUTABLE(vesta main.cpp problem_setup.cpp)
+#TARGET_LINK_LIBRAR
