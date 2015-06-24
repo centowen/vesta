@@ -6,20 +6,27 @@ using ceres::CostFunction;
 
 #ifndef __GAUSSIAN_COST_FUNCTION_H__
 #define __GAUSSIAN_COST_FUNCTION_H__
+
+
 class GaussianCostFunction : public CostFunction {/*{{{*/
 private:
-	double _u, _v, _V_real, _V_imag;
+	double* _u;
+	double* _v;
+
+	double* _V_real;
+	double* _V_imag;
+	double* sqrt_weights;
+
+	bool* _flags;
+
+	int _nchan;
+	int _nstokes;
 
 public:
-	GaussianCostFunction(double u, double v, double V_real, double V_imag)
-		: _u(u), _v(v), _V_real(V_real), _V_imag(V_imag)
-	{
-		for(int i = 0; i < 6; i++) {
-			mutable_parameter_block_sizes()->push_back(1);
-		}
-		set_num_residuals(2);
-	}
-	virtual ~GaussianCostFunction() {}
+	GaussianCostFunction(float* u, float* v, float* V_real, float* V_imag,
+	                     float* weights, bool* flags,
+	                     int nchan, int nstokes);
+	virtual ~GaussianCostFunction();
 
 	virtual bool Evaluate(double const* const* parameters,
 	                      double* residuals,
