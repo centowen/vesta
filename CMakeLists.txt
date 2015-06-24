@@ -3,7 +3,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 set (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 set (CASACORE_ROOT_DIR "/home/lindroos/sw/")
 PROJECT(vesta)
-ADD_EXECUTABLE(vesta vesta_clib/main.cpp vesta_clib/problem_setup.cpp vesta_clib/GaussianCostFunction.cpp)
+ADD_EXECUTABLE(vesta vesta_clib/main.cpp vesta_clib/problem_setup.cpp vesta_clib/GaussianCostFunctionCircular.cpp vesta_clib/GaussianCostFunction.cpp)
 
 FIND_PACKAGE(Ceres REQUIRED PATHS "/home/lindroos/sw/")
 INCLUDE_DIRECTORIES(${CERES_INCLUDE_DIRS})
