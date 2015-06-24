@@ -15,6 +15,10 @@ const int chunk_size = 1000000;
 const float C_LIGHT = 299792458;
 
 
-void add_residual_blocks(Problem& problem, string path);
-void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk);
+void add_residual_blocks(Problem& problem, string path,
+                         double& flux, double& sigma, double& x0, double& y0);
+void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
+                                  double& flux, double& sigma,
+								  double& x0, double& y0);
+// void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk);
 #endif
