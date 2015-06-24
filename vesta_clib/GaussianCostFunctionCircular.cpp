@@ -48,8 +48,8 @@ GaussianCostFunctionCircular::GaussianCostFunctionCircular(float* u, float* v,
 			_V_imag[chan+pol*nchan] = (double)V_imag[chan+pol*nchan];
 			if(flags != NULL)
 				_flags[chan+pol*nchan]  = flags [chan+pol*nchan];
-// 			if(chan == 0) sqrt_weights[pol] = sqrt((double)weights[pol]);
-			if(chan == 0) sqrt_weights[pol] = 1.;
+			if(chan == 0) sqrt_weights[pol] = sqrt((double)weights[pol]);
+// 			if(chan == 0) sqrt_weights[pol] = 1.;
 		}
 	}
 }
