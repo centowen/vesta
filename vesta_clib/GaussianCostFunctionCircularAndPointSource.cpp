@@ -15,18 +15,16 @@
 // along with this program; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA. 
 //
-#include "GaussianCostFunctionCircular.h"
+#include "GaussianCostFunctionCircularAndPointSource.h"
 
-GaussianCostFunctionCircular::GaussianCostFunctionCircular(float* u, float* v,
-                                                           float* V_real, 
-                                                           float* V_imag,
-                                                           float* weights, 
-                                                           int* flags,
-                                                           int nchan, 
-                                                           int nstokes)
+GaussianCostFunctionCircularAndPointSource
+::GaussianCostFunctionCircularAndPointSource(float* u, float* v,
+                                             float* V_real, float* V_imag,
+                                             float* weights, int* flags,
+                                             int nchan, int nstokes)
 	: _nchan(nchan), _nstokes(nstokes)
 {
-	for(int i = 0; i < 4; i++) {
+	for(int i = 0; i < 5; i++) {
 		mutable_parameter_block_sizes()->push_back(1);
 	}
 	set_num_residuals(2*_nchan*_nstokes);
@@ -54,7 +52,8 @@ GaussianCostFunctionCircular::GaussianCostFunctionCircular(float* u, float* v,
 	}
 }
 
-GaussianCostFunctionCircular::~GaussianCostFunctionCircular()
+GaussianCostFunctionCircularAndPointSource
+::~GaussianCostFunctionCircularAndPointSource()
 {
 	delete[] _u;
 	delete[] _v;
@@ -64,14 +63,15 @@ GaussianCostFunctionCircular::~GaussianCostFunctionCircular()
 	delete[] sqrt_weights;
 }
 
-bool GaussianCostFunctionCircular::Evaluate(double const* const* parameters,
-                                    double* residuals,
-                                    double** jacobians) const
+bool GaussianCostFunctionCircularAndPointSource
+::Evaluate(double const* const* parameters, double* residuals,
+           double** jacobians) const
 {
 	double flux  = parameters[0][0];
 	double x0    = parameters[1][0];
 	double y0    = parameters[2][0];
 	double sigma = parameters[3][0];
+	double point_source_flux = parameters[4][0];
 
 	double size;
 	double pos_real;
@@ -120,12 +120,17 @@ bool GaussianCostFunctionCircular::Evaluate(double const* const* parameters,
 						jacobians[3][2*index+0] = 0.;
 						jacobians[3][2*index+1] = 0.;
 					}
+					if(jacobians[4] != NULL)
+					{
+						jacobians[4][2*index+0] = 0.;
+						jacobians[4][2*index+1] = 0.;
+					}
 				}
 			}
 			else
 			{
-				residuals[2*index+0] = sqrt_weights[pol]*(_V_real[index] - V_mod_real);
-				residuals[2*index+1] = sqrt_weights[pol]*(_V_imag[index] - V_mod_imag);
+				residuals[2*index+0] = sqrt_weights[pol]*(_V_real[index] - V_mod_real - point_source_flux);
+				residuals[2*index+1] = sqrt_weights[pol]*(_V_imag[index] - V_mod_imag - point_source_flux);
 
 				if(jacobians != NULL)
 				{
@@ -148,6 +153,11 @@ bool GaussianCostFunctionCircular::Evaluate(double const* const* parameters,
 					{
 						jacobians[3][2*index+0] = sqrt_weights[pol]*V_mod_real * 2*M_PI*M_PI * 2*sigma*(u*u+v*v);
 						jacobians[3][2*index+1] = sqrt_weights[pol]*V_mod_imag * 2*M_PI*M_PI * 2*sigma*(u*u+v*v);
+					}
+					if(jacobians[4] != NULL)
+					{
+						jacobians[4][2*index+0] = -sqrt_weights[pol];
+						jacobians[4][2*index+1] = -sqrt_weights[pol];
 					}
 				}
 			}

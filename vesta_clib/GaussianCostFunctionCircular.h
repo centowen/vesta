@@ -40,7 +40,7 @@ private:
 
 public:
 	GaussianCostFunctionCircular(float* u, float* v, float* V_real, float* V_imag,
-	                     float* weights, bool* flags,
+	                     float* weights, int* flags,
 	                     int nchan, int nstokes);
 	virtual ~GaussianCostFunctionCircular();
 

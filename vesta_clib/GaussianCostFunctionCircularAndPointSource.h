@@ -15,29 +15,37 @@
 // along with this program; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA. 
 //
-#include <iostream>
-#include <complex>
-#include <cmath>
 #include <ceres/ceres.h>
-#include <glog/logging.h>
-
-#include "Chunk.h"
-#ifndef __PROBLEM_SETUP_H__
-#define __PROBLEM_SETUP_H__
-using ceres::Problem;
-using std::string;
+#include <cmath>
+using ceres::CostFunction;
 
 
-const int chunk_size = 1000000;
-const float C_LIGHT = 299792458;
 
+#ifndef __GAUSSIAN_COST_FUNCTION_CIRCULAR_AND_POINT_SOURCE_H__
+#define __GAUSSIAN_COST_FUNCTION_CIRCULAR_AND_POINT_SOURCE_H__
 
-void add_residual_blocks(Problem& problem, string path,
-                         double& flux, double& sigma, double& x0, double& y0,
-                         double& flux_point_source);
-void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
-                                  double& flux, double& sigma,
-                                  double& x0, double& y0,
-                                  double& flux_point_source);
-// void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk);
+class GaussianCostFunctionCircularAndPointSource : public CostFunction {/*{{{*/
+private:
+	double* _u;
+	double* _v;
+
+	double* _V_real;
+	double* _V_imag;
+	double* sqrt_weights;
+
+	bool* _flags;
+
+	int _nchan;
+	int _nstokes;
+
+public:
+	GaussianCostFunctionCircularAndPointSource(float* u, float* v, float* V_real, float* V_imag,
+	                     float* weights, int* flags,
+	                     int nchan, int nstokes);
+	virtual ~GaussianCostFunctionCircularAndPointSource();
+
+	virtual bool Evaluate(double const* const* parameters,
+	                      double* residuals,
+	                      double** jacobians) const;
+};/*}}}*/
 #endif

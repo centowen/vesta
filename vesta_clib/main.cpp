@@ -25,11 +25,14 @@ int main(int argc, char* argv[])
 	double sigma;
 	double x0;
 	double y0;
+	double flux_point_source;
 
 	ceres::Problem problem;
 
-	add_residual_blocks(problem, std::string("/data2/lindroos/ecdfs/aless/stack/k20/stack.uv.ms"),
-	                    flux, sigma, x0, y0);
+	add_residual_blocks(problem, std::string("/data2/lindroos/ecdfs/aless/stack/k20faint1/stack.uv.ms"),
+	                    flux, sigma, x0, y0, flux_point_source);
+// 	add_residual_blocks(problem, std::string("/data2/lindroos/ecdfs/aless/stack/k20/stack.uv.ms"),
+// 	                    flux, sigma, x0, y0, flux_point_source);
 // 	add_residual_blocks(problem, std::string("/home/lindroos/data/k20.stack.uv.ms"),
 // 	                    flux, sigma, x0, y0);
 
@@ -48,7 +51,7 @@ int main(int argc, char* argv[])
 //  to be calculated in abs, phase in place of real, imag
 // 	options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
 	options.minimizer_progress_to_stdout = false;
-	options.function_tolerance = 1e-13;
+	options.function_tolerance = 1e-14;
 	options.num_threads = 32;
 	options.num_linear_solver_threads = 32;
 
@@ -58,6 +61,10 @@ int main(int argc, char* argv[])
 
 // 	double cost;
 // 	problem.Evaluate(ceres::Problem::EvaluateOptions(), &cost, NULL, NULL, NULL);
-	std::cout << "sigma = " << sigma/M_PI*180.*3600. << "arcsec, flux = " 
-	          << flux*1e3 << "mJy" << std::endl;
+// 	std::cout << "flux = " << flux*1e3 << "mJy" << std::endl;
+	std::cout << "sigma = " << sigma/M_PI*180.*3600. << "arcsec, flux = "
+	          << flux*1e3 << "mJy";
+// 	std::cout << " , flux (ps): " << flux_point_source*1e3 << "mJy";
+	std::cout << std::endl;
+	std::cout << "x0 = " << x0 << ", y0 = " << y0 << std::endl;
 }
