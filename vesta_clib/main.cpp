@@ -64,7 +64,7 @@ int main(int argc, char* argv[])
 // 	std::cout << "flux = " << flux*1e3 << "mJy" << std::endl;
 	std::cout << "sigma = " << sigma/M_PI*180.*3600. << "arcsec, flux = "
 	          << flux*1e3 << "mJy";
-// 	std::cout << " , flux (ps): " << flux_point_source*1e3 << "mJy";
+	std::cout << " , flux (ps): " << flux_point_source*1e3 << "mJy";
 	std::cout << std::endl;
 	std::cout << "x0 = " << x0 << ", y0 = " << y0 << std::endl;
 }

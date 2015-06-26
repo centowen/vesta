@@ -129,8 +129,8 @@ bool GaussianCostFunctionCircularAndPointSource
 			}
 			else
 			{
-				residuals[2*index+0] = sqrt_weights[pol]*(_V_real[index] - V_mod_real - point_source_flux);
-				residuals[2*index+1] = sqrt_weights[pol]*(_V_imag[index] - V_mod_imag - point_source_flux);
+				residuals[2*index+0] = sqrt_weights[pol]*(_V_real[index] - V_mod_real - point_source_flux*pos_real);
+				residuals[2*index+1] = sqrt_weights[pol]*(_V_imag[index] - V_mod_imag - point_source_flux*pos_imag);
 
 				if(jacobians != NULL)
 				{
@@ -156,8 +156,8 @@ bool GaussianCostFunctionCircularAndPointSource
 					}
 					if(jacobians[4] != NULL)
 					{
-						jacobians[4][2*index+0] = -sqrt_weights[pol];
-						jacobians[4][2*index+1] = -sqrt_weights[pol];
+						jacobians[4][2*index+0] = -sqrt_weights[pol]*pos_real;
+						jacobians[4][2*index+1] = -sqrt_weights[pol]*pos_imag;
 					}
 				}
 			}
