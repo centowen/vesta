@@ -52,6 +52,7 @@ int main(int argc, char* argv[])
 // 	options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
 	options.minimizer_progress_to_stdout = false;
 	options.function_tolerance = 1e-14;
+	options.parameter_tolerance = 1e-10;
 	options.num_threads = 32;
 	options.num_linear_solver_threads = 32;
 
