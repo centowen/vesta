@@ -30,13 +30,16 @@ using std::endl;
 
 void add_residual_blocks(Problem& problem, string path, 
                          double& flux, double& sigma, double& x0, double& y0,
-                         double& flux_point_source)
+                         double& flux_point_source,
+						 int model)
 {
 	Chunk chunk(chunk_size);
-	DataIO* data = new msio(path.c_str(), "", msio::col_corrected_data);
+// 	DataIO* data = new msio(path.c_str(), "", msio::col_corrected_data);
+	DataIO* data = new msio(path.c_str(), "", msio::col_corrected_data, true, "0");
 	while(data->readChunk(chunk))
 	{
-		add_chunk_to_residual_blocks(problem, chunk, flux, sigma, x0, y0, flux_point_source);
+		add_chunk_to_residual_blocks(problem, chunk, flux, sigma, x0, y0,
+				                     flux_point_source, model);
 	}
 	delete data;
 }
@@ -44,14 +47,9 @@ void add_residual_blocks(Problem& problem, string path,
 void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
                                   double& flux, double& sigma,
 								  double& x0, double& y0,
-								  double& flux_point_source)
+								  double& flux_point_source,
+								  int model)
 {
-	const int mod_gaussian = 0;
-	const int mod_gaussian_ps = 1;
-	const int mod_ps = 2;
-	const int mod_disk = 3;
-	const int mod_disk_ps = 4;
-	int model = mod_disk_ps;
 	bool fixed_position = false;
 	ceres::LossFunction* loss_function = NULL;
 // 	ceres::LossFunction* loss_function = new ceres::CauchyLoss(1.0);
@@ -62,30 +60,40 @@ void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
 
 	if(model == mod_gaussian_ps)
 	{
-		flux = 1.2e-3;
-		sigma = 2.1*M_PI/180./3600;
+// 		flux = 2.8e-3;
+		flux = 1.4e-3;
+// 		sigma = 0.426*M_PI/180./3600;
+		sigma = 0.4*M_PI/180./3600;
 		x0 = 0.;
 		y0 = 0.;
-		flux_point_source = 0.6e-3;
+		flux_point_source = 0.5e-3;
 	}
 	else if(model == mod_gaussian)
 	{
 		flux = 1.2e-3;
-		sigma = 2.1*M_PI/180./3600;
+		sigma = 0.4*M_PI/180./3600;
 		x0 = 0.;
 		y0 = 0.;
 	}
+	else if(model == mod_ps)
+	{
+		flux = 0.;
+		sigma = 0.;
+		x0 = 0.;
+		y0 = 0.;
+		flux_point_source = 1.0e-3;
+	}
 	else if(model == mod_disk)
 	{
-		flux = 1.2e-3;
-		sigma = 2.1*M_PI/180./3600;
+		flux = 2.4e-3;
+		sigma = 1.0*M_PI/180./3600;
 		x0 = 0.;
 		y0 = 0.;
 	}
 	else if(model == mod_disk_ps)
 	{
-		flux = 1.2e-3;
-		sigma = 2.1*M_PI/180./3600;
+		flux = 2.4e-3;
+		sigma = 1.0*M_PI/180./3600;
 		x0 = 0.;
 		y0 = 0.;
 		flux_point_source = 0.6e-3;
@@ -124,6 +132,7 @@ void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
 			problem.SetParameterLowerBound(&flux, 0, 0.);
 			problem.SetParameterLowerBound(&sigma, 0, 0.);
 			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*15);
+// 			problem.SetParameterBlockConstant(&sigma);
 		}
 		else if(model == mod_gaussian_ps)
 		{
@@ -135,7 +144,19 @@ void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
 			problem.AddResidualBlock(cost_function, loss_function, &flux, &x0, &y0, &sigma, &flux_point_source);
 			problem.SetParameterLowerBound(&flux, 0, 0.);
 			problem.SetParameterLowerBound(&sigma, 0, 0.);
-			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*15);
+// 			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*5);
+			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*0.54);
+// 			problem.SetParameterBlockConstant(&sigma);
+			problem.SetParameterLowerBound(&flux_point_source, 0, 0.);
+		}
+		else if(model == mod_ps)
+		{
+			CostFunction* cost_function = 
+				new PointSourceCostFunction(u, v, 
+				                                inVis.data_real, inVis.data_imag,
+				                                inVis.weight, inVis.data_flag,
+				                                chunk.nChan(), chunk.nStokes());
+			problem.AddResidualBlock(cost_function, loss_function, &flux_point_source, &x0, &y0);
 			problem.SetParameterLowerBound(&flux_point_source, 0, 0.);
 		}
 		else if(model == mod_disk)

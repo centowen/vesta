@@ -27,6 +27,12 @@
 using ceres::Problem;
 using std::string;
 
+const int mod_gaussian = 0;
+const int mod_gaussian_ps = 1;
+const int mod_ps = 2;
+const int mod_disk = 3;
+const int mod_disk_ps = 4;
+
 
 const int chunk_size = 1000000;
 const float C_LIGHT = 299792458;
@@ -34,10 +40,11 @@ const float C_LIGHT = 299792458;
 
 void add_residual_blocks(Problem& problem, string path,
                          double& flux, double& sigma, double& x0, double& y0,
-                         double& flux_point_source);
+                         double& flux_point_source, int model);
 void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
                                   double& flux, double& sigma,
                                   double& x0, double& y0,
-                                  double& flux_point_source);
+                                  double& flux_point_source,
+								  int model);
 // void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk);
 #endif
