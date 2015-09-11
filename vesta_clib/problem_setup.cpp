@@ -145,7 +145,8 @@ void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
 			problem.SetParameterLowerBound(&flux, 0, 0.);
 			problem.SetParameterLowerBound(&sigma, 0, 0.);
 // 			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*5);
-			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*0.54);
+// 			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*0.54);
+			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*3.0);
 // 			problem.SetParameterBlockConstant(&sigma);
 			problem.SetParameterLowerBound(&flux_point_source, 0, 0.);
 		}
