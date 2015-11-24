@@ -5,18 +5,23 @@ set (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 set (CASACORE_ROOT_DIR "/astro/casacore")
 PROJECT(vesta)
 ADD_EXECUTABLE(vesta vesta_clib/main.cpp vesta_clib/problem_setup.cpp vesta_clib/GaussianCostFunctionCircular.cpp vesta_clib/GaussianCostFunctionCircularAndPointSource.cpp vesta_clib/GaussianCostFunction.cpp vesta_clib/DiskAndDeltaCost.cpp vesta_clib/DiskCost.cpp vesta_clib/PointSourceCostFunction.cpp)
+ADD_LIBRARY(chi2_scan SHARED vesta_clib/chi2.cpp vesta_clib/GaussianCostFunctionCircular.cpp vesta_clib/GaussianCostFunctionCircularAndPointSource.cpp vesta_clib/GaussianCostFunction.cpp vesta_clib/DiskAndDeltaCost.cpp vesta_clib/DiskCost.cpp vesta_clib/PointSourceCostFunction.cpp)
 
 FIND_PACKAGE(Ceres REQUIRED PATHS "/home/lindroos/sw/")
 INCLUDE_DIRECTORIES(${CERES_INCLUDE_DIRS})
 TARGET_LINK_LIBRARIES(vesta ${CERES_LIBRARIES})
+TARGET_LINK_LIBRARIES(chi2_scan ${CERES_LIBRARIES})
 
 
 FIND_PACKAGE(CasaCore REQUIRED)
 INCLUDE_DIRECTORIES(${CASACORE_INCLUDE_DIRS})
 TARGET_LINK_LIBRARIES(vesta ${CASACORE_LIBRARIES})
+TARGET_LINK_LIBRARIES(chi2_scan ${CASACORE_LIBRARIES})
 
 SET(STACKER_LIBRARIES)
+ADD_DEFINITIONS(-DCASACORE_VERSION_2)
 list(APPEND STACKER_LIBRARIES /home/lindroos/scripts/stacker/stacker_clib/libstacker.so)
 INCLUDE_DIRECTORIES(/home/lindroos/scripts/stacker/stacker_clib)
 TARGET_LINK_LIBRARIES(vesta ${STACKER_LIBRARIES})
+TARGET_LINK_LIBRARIES(chi2_scan ${STACKER_LIBRARIES})
 #TARGET_LINK_LIBRAR
