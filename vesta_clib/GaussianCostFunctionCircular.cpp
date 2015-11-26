@@ -33,10 +33,16 @@ GaussianCostFunctionCircular::GaussianCostFunctionCircular(float* u, float* v,
 
 	_u = new double[_nchan*_nstokes];
 	_v = new double[_nchan*_nstokes];
+	size = new double[_nchan*_nstokes];
+	pos_real = new double[_nchan*_nstokes];
+	pos_imag = new double[_nchan*_nstokes];
 	_V_real  = new double[_nchan*_nstokes];
 	_V_imag  = new double[_nchan*_nstokes];
 	_flags   = new   bool[_nchan*_nstokes];
 	sqrt_weights = new double[_nstokes];
+#ifdef ENABLE_CUDA
+	allocate_stuff(_nchan, _nstokes);
+#endif
 
 	for(int chan = 0; chan < nchan; chan++)
 	{
@@ -58,6 +64,9 @@ GaussianCostFunctionCircular::~GaussianCostFunctionCircular()
 {
 	delete[] _u;
 	delete[] _v;
+	delete[] size;
+	delete[] pos_real;
+	delete[] pos_imag;
 	delete[] _V_real;
 	delete[] _V_imag;
 	delete[] _flags;
@@ -73,9 +82,28 @@ bool GaussianCostFunctionCircular::Evaluate(double const* const* parameters,
 	double y0    = parameters[2][0];
 	double sigma = parameters[3][0];
 
-	double size;
-	double pos_real;
-	double pos_imag;
+	double* size = new double[_nchan*_nstokes];
+	double* pos_real = new double[_nchan*_nstokes];
+	double* pos_imag = new double[_nchan*_nstokes];
+
+#ifdef ENABLE_CUDA
+	calc_functions(sigma, x0, y0, _nchan, _nstokes,
+			       _u, _v, size, pos_real, pos_imag);
+#else
+	for(int chan = 0; chan < _nchan; chan++)
+	{
+		for(int pol = 0; pol < _nstokes; pol++)
+		{
+			int index = chan+pol*_nchan;
+			double& u = _u[index];
+			double& v = _v[index];
+			size[index]     = exp(-2*M_PI*M_PI*(u*u+v*v)*sigma*sigma);
+			pos_real[index] = cos(-2*M_PI*(x0*u+y0*v));
+			pos_imag[index] = sin(-2*M_PI*(x0*u+y0*v));
+		}
+	}
+#endif
+
 	double V_mod_real;
 	double V_mod_imag;
 
@@ -87,11 +115,8 @@ bool GaussianCostFunctionCircular::Evaluate(double const* const* parameters,
 			double& u = _u[index];
 			double& v = _v[index];
 
-			size         = exp(-2*M_PI*M_PI*(u*u+v*v)*sigma*sigma);
-			pos_real     = cos(-2*M_PI*(x0*u+y0*v));
-			pos_imag     = sin(-2*M_PI*(x0*u+y0*v));
-			V_mod_real   = flux*size*pos_real;
-			V_mod_imag   = flux*size*pos_imag;
+			V_mod_real   = flux*size[index]*pos_real[index];
+			V_mod_imag   = flux*size[index]*pos_imag[index];
 
 			if(_flags[index])
 			{
@@ -131,8 +156,8 @@ bool GaussianCostFunctionCircular::Evaluate(double const* const* parameters,
 				{
 					if(jacobians[0] != NULL)
 					{
-						jacobians[0][2*index+0] = -sqrt_weights[pol]*size*pos_real;
-						jacobians[0][2*index+1] = -sqrt_weights[pol]*size*pos_imag;
+						jacobians[0][2*index+0] = -sqrt_weights[pol]*size[index]*pos_real[index];
+						jacobians[0][2*index+1] = -sqrt_weights[pol]*size[index]*pos_imag[index];
 					}
 					if(jacobians[1] != NULL)
 					{

@@ -19,15 +19,23 @@
 #include <cmath>
 using ceres::CostFunction;
 
+#ifdef ENABLE_CUDA
+#include "GaussianCostFunctionCircularCuda.h"
+#endif
+
 
 
 #ifndef __GAUSSIAN_COST_FUNCTION_CIRCULAR_H__
 #define __GAUSSIAN_COST_FUNCTION_CIRCULAR_H__
 
-class GaussianCostFunctionCircular : public CostFunction {/*{{{*/
+class GaussianCostFunctionCircular : public CostFunction /*{{{*/
+{
 private:
 	double* _u;
 	double* _v;
+	double* size;
+	double* pos_real;
+	double* pos_imag;
 
 	double* _V_real;
 	double* _V_imag;

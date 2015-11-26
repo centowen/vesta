@@ -237,7 +237,7 @@ void* computer_thread(void* data)
 
 	for(Costs::iterator it = costs.begin(); it != costs.end(); it++)
 	{
-		if(n_res != (**it)msio.num_residuals())
+		if(n_res != (**it).num_residuals())
 		{
 			if(residuals != NULL)
 				delete[] residuals;
