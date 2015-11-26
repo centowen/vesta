@@ -70,8 +70,10 @@ void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
 	}
 	else if(model == mod_gaussian)
 	{
-		flux = 1.2e-3;
-		sigma = 0.4*M_PI/180./3600;
+// 		flux = 1.2e-3;
+		flux = 4.22e-3;
+// 		sigma = 0.4*M_PI/180./3600;
+		sigma = 0.3*M_PI/180./3600;
 		x0 = 0.;
 		y0 = 0.;
 	}
@@ -92,11 +94,11 @@ void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
 	}
 	else if(model == mod_disk_ps)
 	{
-		flux = 2.4e-3;
-		sigma = 1.0*M_PI/180./3600;
+		flux = 0.47e-3;
+		sigma = 1.2*M_PI/180./3600;
 		x0 = 0.;
 		y0 = 0.;
-		flux_point_source = 0.6e-3;
+		flux_point_source = 1.00e-3;
 	}
 
 	for(int uvrow = 0; uvrow < chunk.size(); uvrow++)
@@ -131,6 +133,7 @@ void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
 	// 		problem.AddResidualBlock(cost_function, NULL, &flux, &x0, &y0);
 			problem.SetParameterLowerBound(&flux, 0, 0.);
 			problem.SetParameterLowerBound(&sigma, 0, 0.);
+// 			problem.SetParameterLowerBound(&sigma, 0,  -M_PI/180./3600*15);
 			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*15);
 // 			problem.SetParameterBlockConstant(&sigma);
 		}
@@ -146,7 +149,8 @@ void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
 			problem.SetParameterLowerBound(&sigma, 0, 0.);
 // 			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*5);
 // 			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*0.54);
-			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*3.0);
+			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*0.64);
+// 			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*2.56/4.*3./2.35);
 // 			problem.SetParameterBlockConstant(&sigma);
 			problem.SetParameterLowerBound(&flux_point_source, 0, 0.);
 		}

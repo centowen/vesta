@@ -18,7 +18,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include <queue>
 #include <ceres/ceres.h>
+#include <pthread.h>
 
 #include "ndarray.h"
 #include "problem_setup.h"
@@ -31,18 +33,39 @@
 
 using std::cout;
 using std::endl;
+using std::queue;
+using std::pair;
 using ceres::CostFunction;
 
 typedef std::vector<CostFunction*> Costs;
 
+class ComputerDataContainer
+{
+public:
+	Costs& costs;
+	double& chi2;
+
+	int n_pars;
+	double** parameters;
+
+	ComputerDataContainer(Costs& costs_, double& chi2_, Ndarray<double, 1> parameters);
+	~ComputerDataContainer();
+};
+
+
 template <int ndim>
-void chi2_scan(Ndarray<double, ndim> chi2, Costs& costs, Ndarray<double, ndim+1> parameters);
+void chi2_scan(Ndarray<double, ndim> chi2, Costs& costs,
+               Ndarray<double, ndim+1> parameters,
+               vector<pthread_t>& threads);
 
 template <>
-void chi2_scan<1>(Ndarray<double, 1> chi2, Costs& costs, Ndarray<double, 2> parameters);
+void chi2_scan<1>(Ndarray<double, 1> chi2, Costs& costs,
+                  Ndarray<double, 2> parameters,
+                  vector<pthread_t>& threads);
 
 
 Costs get_cost_functions(std::string path, int model);
+void* computer_thread(void* data);
 
 
 extern "C"{
@@ -53,69 +76,68 @@ void c_chi2_scan(numpyArray<double> c_chi2, int ndim,
 	std::string path(c_path);
 	Costs costs = get_cost_functions(path, model);
 	cout << "model is set up " << (**costs.begin()).num_residuals() << endl;
+	vector<pthread_t> threads;
 
 	if(ndim == 1)
 	{
 		Ndarray<double, 1> chi2(c_chi2);
 		Ndarray<double, 2> parameters(c_parameters);
-		chi2_scan(chi2, costs, parameters);
+		chi2_scan(chi2, costs, parameters, threads);
 	}
 	else if(ndim == 2)
 	{
 		Ndarray<double, 2> chi2(c_chi2);
 		Ndarray<double, 3> parameters(c_parameters);
-		chi2_scan(chi2, costs, parameters);
+		chi2_scan(chi2, costs, parameters, threads);
 	}
 	else if(ndim == 3)
 	{
 		Ndarray<double, 3> chi2(c_chi2);
 		Ndarray<double, 4> parameters(c_parameters);
-		chi2_scan(chi2, costs, parameters);
+		chi2_scan(chi2, costs, parameters, threads);
 	}
 	else if(ndim == 4)
 	{
 		Ndarray<double, 4> chi2(c_chi2);
 		Ndarray<double, 5> parameters(c_parameters);
-		chi2_scan(chi2, costs, parameters);
+		chi2_scan(chi2, costs, parameters, threads);
+	}
+
+	for(vector<pthread_t>::iterator it = threads.begin();
+		it != threads.end(); it++)
+	{
+		pthread_join(*it, NULL);
+	}
+
+	for(Costs::iterator it = costs.begin(); it != costs.end(); it++)
+	{
+		delete *it;
+		*it = NULL;
 	}
 };
 };
 
 template <int ndim>
-void chi2_scan(Ndarray<double, ndim> chi2, Costs& costs, Ndarray<double, ndim+1> parameters)
+void chi2_scan(Ndarray<double, ndim> chi2, Costs& costs,
+               Ndarray<double, ndim+1> parameters,
+               vector<pthread_t>& threads)
 {
 	for(int i = 0; i < chi2.getShape(0); i++)
-		chi2_scan<ndim-1>(chi2[i], costs, parameters[i]);
+		chi2_scan<ndim-1>(chi2[i], costs, parameters[i], threads);
 }
 
 template <>
-void chi2_scan<1>(Ndarray<double, 1> chi2, Costs& costs, Ndarray<double, 2> parameters)
+void chi2_scan<1>(Ndarray<double, 1> chi2, Costs& costs,
+                  Ndarray<double, 2> parameters, vector<pthread_t>& threads)
 {
 	for(int i = 0; i < chi2.getShape(0); i++)
 	{
-		double** params = new double*[parameters.getShape(1)];
-		for(int i_par = 0; i_par < parameters.getShape(1); i_par++)
-		{
-			params[i_par] = new double[1];
-			params[i_par][0] = parameters[i][i_par];
-		}
-
 		chi2[i] = 0.;
-		for(Costs::iterator it = costs.begin(); it != costs.end(); it++)
-		{
-			int n_res = (**it).num_residuals();
-			double* residuals = new double[n_res];
-			(**it).Evaluate(params, residuals, NULL);
-			for(int i_res = 0; i_res < n_res; i_res++)
-			{
-				chi2[i] += residuals[i_res]*residuals[i_res];
-			}
-			delete[] residuals;
-		}
 
-		for(int i_par = 0; i_par < parameters.getShape(1); i_par++)
-			delete[] params[i_par];
-		delete[] params;
+		ComputerDataContainer *data = new ComputerDataContainer(costs, chi2[i], parameters[i]);
+		pthread_t thread;
+		threads.push_back(thread);
+		pthread_create(&thread, NULL, computer_thread, (void*)data);
 	}
 }
 
@@ -131,6 +153,7 @@ std::vector<CostFunction*> get_cost_functions(std::string path, int model)
 	{
 		float* u = new float[chunk.nChan() * chunk.nStokes()];
 		float* v = new float[chunk.nChan() * chunk.nStokes()];
+
 		for(int uvrow = 0; uvrow < chunk.size(); uvrow++)
 		{
 			Visibility& inVis = chunk.inVis[uvrow];
@@ -188,6 +211,75 @@ std::vector<CostFunction*> get_cost_functions(std::string path, int model)
 
 			cost_functions.push_back(cost_function);
 		}
+
+		delete[] u;
+		delete[] v;
 	}
+
+	delete data;
 	return cost_functions;
 }
+
+void* computer_thread(void* data)
+{
+	ComputerDataContainer* computer_data_container = (ComputerDataContainer*)data;
+
+	Costs& costs = computer_data_container->costs;
+	double& chi2 = computer_data_container->chi2;
+
+	double** parameters = computer_data_container->parameters;
+	int n_pars = computer_data_container->n_pars;
+
+
+	Costs::iterator begin, end;
+	int n_res = -1;
+	double* residuals = NULL;
+
+	for(Costs::iterator it = costs.begin(); it != costs.end(); it++)
+	{
+		if(n_res != (**it)msio.num_residuals())
+		{
+			if(residuals != NULL)
+				delete[] residuals;
+			n_res = (**it).num_residuals();
+			residuals = new double[n_res];
+		}
+
+		(**it).Evaluate(parameters, residuals, NULL);
+
+		for(int i_res = 0; i_res < n_res; i_res++)
+		{
+			chi2 += residuals[i_res]*residuals[i_res];
+		}
+	}
+
+	if(residuals != NULL)
+	{
+		delete[] residuals;
+		residuals = NULL;
+	}
+}
+
+
+ComputerDataContainer::ComputerDataContainer(Costs& costs_, double& chi2_,
+                                             Ndarray<double, 1> parameters_): 
+		costs(costs_), chi2(chi2_)
+{
+	n_pars = parameters_.getShape(0);
+	parameters = new double*[n_pars];
+
+	for(int i = 0; i < n_pars; i++)
+	{
+		parameters[i] = new double[1];
+		parameters[i][0] = parameters_[i];
+	}
+};
+
+ComputerDataContainer::~ComputerDataContainer()
+{
+	for(int i = 0; i < n_pars; i++)
+	{
+		delete[] parameters[i];
+	}
+	delete[] parameters;
+};

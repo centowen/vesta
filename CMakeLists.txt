@@ -1,6 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 set (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+SET(CMAKE_CXX_FLAGS_RELEASE "-O3")
 # set (CASACORE_ROOT_DIR "/home/lindroos/sw/")
 set (CASACORE_ROOT_DIR "/astro/casacore")
 PROJECT(vesta)

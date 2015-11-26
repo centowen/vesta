@@ -65,7 +65,7 @@ int main(int argc, char* argv[])
 	                    flux, sigma, x0, y0, flux_point_source, model);
 
 	ceres::Solver::Options options;
-	options.max_num_iterations = 50;
+	options.max_num_iterations = 100;
 
 	// Achieves the best performance in a simple test
 	// ~2 times faster than DENSE_QR
@@ -80,7 +80,9 @@ int main(int argc, char* argv[])
 // 	options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
 	options.minimizer_progress_to_stdout = false;
 	options.function_tolerance = 1e-18;
-	options.parameter_tolerance = 1e-15;
+	options.parameter_tolerance = 1e-12;
+// 	options.function_tolerance = 1e-10;
+// 	options.parameter_tolerance = 1e-08;
 	options.num_threads = 32;
 	options.num_linear_solver_threads = 32;
 

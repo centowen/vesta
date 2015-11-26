@@ -1,4 +1,4 @@
-// vesta, use Ceres to douv-model fitting for ms-data.
+// vesta, use Ceres to do uv-model fitting for ms-data.
 // Copyright (C) 2015  Lukas Lindroos
 //
 // This program is free software; you can redistribute it and/or
