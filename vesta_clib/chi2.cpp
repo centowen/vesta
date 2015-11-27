@@ -151,8 +151,8 @@ std::vector<CostFunction*> get_cost_functions(std::string path, int model)
 
 	while(data->readChunk(chunk))
 	{
-		float* u = new float[chunk.nChan() * chunk.nStokes()];
-		float* v = new float[chunk.nChan() * chunk.nStokes()];
+		float* u = new float[chunk.nChan() * chunk.nStokes() * chunk.size()];
+		float* v = new float[chunk.nChan() * chunk.nStokes() * chunk.size()];
 
 		for(int uvrow = 0; uvrow < chunk.size(); uvrow++)
 		{
@@ -163,54 +163,58 @@ std::vector<CostFunction*> get_cost_functions(std::string path, int model)
 			{
 				for(int i_stokes = 0; i_stokes < chunk.nStokes(); i_stokes++)
 				{
-					size_t index = i_stokes*chunk.nChan()+chan;
+					size_t index = uvrow*chunk.nChan()*chunk.nStokes();
+					index += (i_stokes*chunk.nChan()+chan);
 					u[index] = inVis.u * freq[chan] / C_LIGHT;
 					v[index] = inVis.v * freq[chan] / C_LIGHT;
 				}
 			}
-
-			CostFunction* cost_function;
-			if(model == mod_gaussian)
-			{
-				cost_function = 
-					new GaussianCostFunctionCircular(u, v, 
-													inVis.data_real, inVis.data_imag,
-													inVis.weight, inVis.data_flag,
-													chunk.nChan(), chunk.nStokes());
-			}
-			else if(model == mod_gaussian_ps)
-			{
-				cost_function = 
-					new GaussianCostFunctionCircularAndPointSource(u, v, 
-													inVis.data_real, inVis.data_imag,
-													inVis.weight, inVis.data_flag,
-													chunk.nChan(), chunk.nStokes());
-			}
-			else if(model == mod_ps)
-			{
-				cost_function = 
-					new PointSourceCostFunction(u, v, 
-					                            inVis.data_real, inVis.data_imag,
-					                            inVis.weight, inVis.data_flag,
-					                            chunk.nChan(), chunk.nStokes());
-			}
-			else if(model == mod_disk)
-			{
-				cost_function = 
-					new DiskCost(u, v, inVis.data_real, inVis.data_imag,
-								inVis.weight, inVis.data_flag,
-								chunk.nChan(), chunk.nStokes());
-			}
-			else if(model == mod_disk_ps)
-			{
-				cost_function = 
-					new DiskAndDeltaCost(u, v, inVis.data_real, inVis.data_imag,
-										inVis.weight, inVis.data_flag,
-										chunk.nChan(), chunk.nStokes());
-			}
-
-			cost_functions.push_back(cost_function);
 		}
+
+		CostFunction* cost_function;
+		if(model == mod_gaussian)
+		{
+			cost_function = 
+				new GaussianCostFunctionCircular(chunk);
+// 				new GaussianCostFunctionCircular(u, v, 
+// 												chunk.data_real_in, chunk.data_imag_in,
+// 												chunk.weight_in, chunk.data_flag_in,
+// 												chunk.nChan(), chunk.nStokes(), chunk.size());
+		}
+		else if(model == mod_gaussian_ps)
+		{
+			cost_function = 
+				new GaussianCostFunctionCircularAndPointSource(u, v, 
+						chunk.data_real_in, chunk.data_imag_in,
+						chunk.weight_in, chunk.data_flag_in,
+						chunk.nChan(), chunk.nStokes(), chunk.size());
+		}
+		else if(model == mod_ps)
+		{
+			cost_function = 
+				new PointSourceCostFunction(u, v, 
+											chunk.data_real_in, chunk.data_imag_in,
+											chunk.weight_in, chunk.data_flag_in,
+											chunk.nChan(), chunk.nStokes(), chunk.size());
+		}
+		else if(model == mod_disk)
+		{
+			cost_function = 
+				new DiskCost(u, v,
+						chunk.data_real_in, chunk.data_imag_in,
+						chunk.weight_in, chunk.data_flag_in,
+						chunk.nChan(), chunk.nStokes(), chunk.size());
+		}
+		else if(model == mod_disk_ps)
+		{
+			cost_function = 
+				new DiskAndDeltaCost(u, v,
+						chunk.data_real_in, chunk.data_imag_in,
+						chunk.weight_in, chunk.data_flag_in,
+						chunk.nChan(), chunk.nStokes(), chunk.size());
+		}
+
+		cost_functions.push_back(cost_function);
 
 		delete[] u;
 		delete[] v;

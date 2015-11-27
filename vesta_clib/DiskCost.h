@@ -19,6 +19,9 @@
 #include <cmath>
 using ceres::CostFunction;
 
+#ifdef ENABLE_CUDA
+#include "CommonCuda.h"
+#endif
 
 
 #ifndef __DISK_COST_H__
@@ -28,6 +31,14 @@ class DiskCost : public CostFunction {/*{{{*/
 private:
 	double* _u;
 	double* _v;
+	double* size;
+	double* dsize_dsigma;
+	double* pos_real;
+	double* pos_imag;
+
+#ifdef ENABLE_CUDA
+	DataContainer cu_data;
+#endif
 
 	double* _V_real;
 	double* _V_imag;
@@ -37,11 +48,12 @@ private:
 
 	int _nchan;
 	int _nstokes;
+	int _nrow;
 
 public:
 	DiskCost(float* u, float* v, float* V_real, float* V_imag,
 	                     float* weights, int* flags,
-	                     int nchan, int nstokes);
+	                     const int nchan, const int nstokes, const int nrow);
 	virtual ~DiskCost();
 
 	virtual bool Evaluate(double const* const* parameters,

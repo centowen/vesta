@@ -17,16 +17,17 @@
 //
 #include <ceres/ceres.h>
 #include <cmath>
+#include <iostream>
 using ceres::CostFunction;
 
 #ifdef ENABLE_CUDA
-#include "GaussianCostFunctionCircularCuda.h"
+#include "CommonCuda.h"
 #endif
-
 
 
 #ifndef __GAUSSIAN_COST_FUNCTION_CIRCULAR_H__
 #define __GAUSSIAN_COST_FUNCTION_CIRCULAR_H__
+class Chunk;
 
 class GaussianCostFunctionCircular : public CostFunction /*{{{*/
 {
@@ -37,6 +38,11 @@ private:
 	double* pos_real;
 	double* pos_imag;
 
+#ifdef ENABLE_CUDA
+// 	DataContainer cu_data;
+	VisDataContainer dev_uvdata;
+#endif
+
 	double* _V_real;
 	double* _V_imag;
 	double* sqrt_weights;
@@ -45,11 +51,13 @@ private:
 
 	int _nchan;
 	int _nstokes;
+	int _nrow;
 
 public:
-	GaussianCostFunctionCircular(float* u, float* v, float* V_real, float* V_imag,
-	                     float* weights, int* flags,
-	                     int nchan, int nstokes);
+// 	GaussianCostFunctionCircular(float* u, float* v, float* V_real, float* V_imag,
+// 	                     float* weights, int* flags,
+// 	                     const int nchan, const int nstokes, const int nrow);
+	GaussianCostFunctionCircular(Chunk chunk);
 	virtual ~GaussianCostFunctionCircular();
 
 	virtual bool Evaluate(double const* const* parameters,

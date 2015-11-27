@@ -19,9 +19,22 @@
 #ifndef __GAUSSIAN_COST_FUNCTION_CIRCULAR_CUDA_H__
 #define __GAUSSIAN_COST_FUNCTION_CIRCULAR_CUDA_H__
 
-void allocate_stuff(const int nchan, const int nstokes);
-void free_stuff();
-void calc_functions(double sigma, double x0, double y0, const int nchan, const int nstokes,
+class DataContainer
+{
+public:
+	double* u;
+	double* v;
+	double* size;
+	double* pos_real;
+	double* pos_imag;
+};
+
+void allocate_stuff(const int nchan, const int nstokes, const int nrow,
+                    DataContainer& data);
+void free_stuff(DataContainer& data);
+void calc_functions(double sigma, double x0, double y0,
+                    const int nchan, const int nstokes, const int nrow,
                     double* u, double* v,
-					double* size, double* pos_real, double* pos_imag);
+                    double* size, double* pos_real, double* pos_imag,
+					const DataContainer data);
 #endif

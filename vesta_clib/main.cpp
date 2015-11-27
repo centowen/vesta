@@ -18,6 +18,7 @@
 #include <ceres/ceres.h>
 #include <iomanip>
 #include <fstream>
+#include "glog/logging.h"
 
 #include "problem_setup.h"
 
@@ -30,6 +31,7 @@ int main(int argc, char* argv[])
 	double flux_point_source;
 
 	ceres::Problem problem;
+	google::InitGoogleLogging(argv[0]);
 	
 	std::string filepath;
 	std::string outfilepath = "";

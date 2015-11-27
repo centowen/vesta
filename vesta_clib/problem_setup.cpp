@@ -33,7 +33,8 @@ void add_residual_blocks(Problem& problem, string path,
                          double& flux_point_source,
 						 int model)
 {
-	Chunk chunk(chunk_size);
+	Chunk chunk(100);
+// 	Chunk chunk(chunk_size);
 // 	DataIO* data = new msio(path.c_str(), "", msio::col_corrected_data);
 	DataIO* data = new msio(path.c_str(), "", msio::col_corrected_data, true, "0");
 	while(data->readChunk(chunk))
@@ -55,8 +56,8 @@ void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
 // 	ceres::LossFunction* loss_function = new ceres::CauchyLoss(1.0);
 // 	ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
 
-	float* u = new float[chunk.nChan() * chunk.nStokes()];
-	float* v = new float[chunk.nChan() * chunk.nStokes()];
+	float* u = new float[chunk.nChan() * chunk.nStokes() * chunk.size()];
+	float* v = new float[chunk.nChan() * chunk.nStokes() * chunk.size()];
 
 	if(model == mod_gaussian_ps)
 	{
@@ -110,89 +111,94 @@ void add_chunk_to_residual_blocks(Problem& problem, Chunk& chunk,
 		{
 			for(int i_stokes = 0; i_stokes < chunk.nStokes(); i_stokes++)
 			{
-				size_t index = i_stokes*chunk.nChan()+chan;
+				size_t index = uvrow*chunk.nChan()*chunk.nStokes()+i_stokes*chunk.nChan()+chan;
 				u[index] = inVis.u * freq[chan] / C_LIGHT;
 				v[index] = inVis.v * freq[chan] / C_LIGHT;
 			}
 		}
+	}
 // 		CostFunction* cost_function = 
 // 			new PointSourceCostFunction(u, v, 
 // 			                            inVis.data_real, inVis.data_imag,
 // 			                            inVis.weight, inVis.data_flag,
 // 			                            chunk.nChan(), chunk.nStokes());
 
-		if(model == mod_gaussian)
-		{
-			CostFunction* cost_function = 
-				new GaussianCostFunctionCircular(u, v, 
-												inVis.data_real, inVis.data_imag,
-												inVis.weight, inVis.data_flag,
-												chunk.nChan(), chunk.nStokes());
-	// 		problem.AddResidualBlock(cost_function, new ceres::CauchyLoss(1.0), &flux, &x0, &y0, &sigma);
-			problem.AddResidualBlock(cost_function, loss_function, &flux, &x0, &y0, &sigma);
-	// 		problem.AddResidualBlock(cost_function, NULL, &flux, &x0, &y0);
-			problem.SetParameterLowerBound(&flux, 0, 0.);
-			problem.SetParameterLowerBound(&sigma, 0, 0.);
+	if(model == mod_gaussian)
+	{
+// 		CostFunction* cost_function = 
+// 			new GaussianCostFunctionCircular(u, v, 
+// 											chunk.data_real_in, chunk.data_imag_in,
+// 											chunk.weight_in, chunk.data_flag_in,
+// 											chunk.nChan(), chunk.nStokes(), chunk.size());
+		CostFunction* cost_function = 
+			new GaussianCostFunctionCircular(chunk);
+// 		problem.AddResidualBlock(cost_function, new ceres::CauchyLoss(1.0), &flux, &x0, &y0, &sigma);
+		problem.AddResidualBlock(cost_function, loss_function, &flux, &x0, &y0, &sigma);
+// 		problem.AddResidualBlock(cost_function, NULL, &flux, &x0, &y0);
+		problem.SetParameterLowerBound(&flux, 0, 0.);
+		problem.SetParameterLowerBound(&sigma, 0, 0.);
 // 			problem.SetParameterLowerBound(&sigma, 0,  -M_PI/180./3600*15);
-			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*15);
+		problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*15);
 // 			problem.SetParameterBlockConstant(&sigma);
-		}
-		else if(model == mod_gaussian_ps)
-		{
-			CostFunction* cost_function = 
-				new GaussianCostFunctionCircularAndPointSource(u, v, 
-				                                inVis.data_real, inVis.data_imag,
-				                                inVis.weight, inVis.data_flag,
-				                                chunk.nChan(), chunk.nStokes());
-			problem.AddResidualBlock(cost_function, loss_function, &flux, &x0, &y0, &sigma, &flux_point_source);
-			problem.SetParameterLowerBound(&flux, 0, 0.);
-			problem.SetParameterLowerBound(&sigma, 0, 0.);
+	}
+	else if(model == mod_gaussian_ps)
+	{
+		CostFunction* cost_function = 
+			new GaussianCostFunctionCircularAndPointSource(u, v, 
+											chunk.data_real_in, chunk.data_imag_in,
+											chunk.weight_in, chunk.data_flag_in,
+											chunk.nChan(), chunk.nStokes(), chunk.size());
+		problem.AddResidualBlock(cost_function, loss_function, &flux, &x0, &y0, &sigma, &flux_point_source);
+		problem.SetParameterLowerBound(&flux, 0, 0.);
+		problem.SetParameterLowerBound(&sigma, 0, 0.);
 // 			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*5);
 // 			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*0.54);
-			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*0.64);
+		problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*0.64);
 // 			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*2.56/4.*3./2.35);
 // 			problem.SetParameterBlockConstant(&sigma);
-			problem.SetParameterLowerBound(&flux_point_source, 0, 0.);
-		}
-		else if(model == mod_ps)
-		{
-			CostFunction* cost_function = 
-				new PointSourceCostFunction(u, v, 
-				                                inVis.data_real, inVis.data_imag,
-				                                inVis.weight, inVis.data_flag,
-				                                chunk.nChan(), chunk.nStokes());
-			problem.AddResidualBlock(cost_function, loss_function, &flux_point_source, &x0, &y0);
-			problem.SetParameterLowerBound(&flux_point_source, 0, 0.);
-		}
-		else if(model == mod_disk)
-		{
-			CostFunction* cost_function = 
-				new DiskCost(u, v, inVis.data_real, inVis.data_imag,
-				             inVis.weight, inVis.data_flag,
-				             chunk.nChan(), chunk.nStokes());
-			problem.AddResidualBlock(cost_function, loss_function, &flux, &x0, &y0, &sigma);
-			problem.SetParameterLowerBound(&flux, 0, 0.);
-			problem.SetParameterLowerBound(&sigma, 0, 0.);
-			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*15);
-		}
-		else if(model == mod_disk_ps)
-		{
-			CostFunction* cost_function = 
-				new DiskAndDeltaCost(u, v, inVis.data_real, inVis.data_imag,
-				                     inVis.weight, inVis.data_flag,
-				                     chunk.nChan(), chunk.nStokes());
-			problem.AddResidualBlock(cost_function, loss_function, &flux, &x0, &y0, &sigma, &flux_point_source);
-			problem.SetParameterLowerBound(&flux, 0, 0.);
-			problem.SetParameterLowerBound(&sigma, 0, 0.);
-			problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*15);
-			problem.SetParameterLowerBound(&flux_point_source, 0, 0.);
-		}
-		if(fixed_position)
-		{
-			problem.SetParameterBlockConstant(&x0);
-			problem.SetParameterBlockConstant(&y0);
-		}
+		problem.SetParameterLowerBound(&flux_point_source, 0, 0.);
 	}
+	else if(model == mod_ps)
+	{
+		CostFunction* cost_function = 
+			new PointSourceCostFunction(u, v, 
+					chunk.data_real_in, chunk.data_imag_in,
+					chunk.weight_in, chunk.data_flag_in,
+					chunk.nChan(), chunk.nStokes(), chunk.size());
+		problem.AddResidualBlock(cost_function, loss_function, &flux_point_source, &x0, &y0);
+		problem.SetParameterLowerBound(&flux_point_source, 0, 0.);
+	}
+	else if(model == mod_disk)
+	{
+		CostFunction* cost_function = 
+			new DiskCost(u, v,
+					chunk.data_real_in, chunk.data_imag_in,
+					chunk.weight_in, chunk.data_flag_in,
+					chunk.nChan(), chunk.nStokes(), chunk.size());
+		problem.AddResidualBlock(cost_function, loss_function, &flux, &x0, &y0, &sigma);
+		problem.SetParameterLowerBound(&flux, 0, 0.);
+		problem.SetParameterLowerBound(&sigma, 0, 0.);
+		problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*15);
+	}
+	else if(model == mod_disk_ps)
+	{
+		CostFunction* cost_function = 
+			new DiskAndDeltaCost(u, v,
+					chunk.data_real_in, chunk.data_imag_in,
+					chunk.weight_in, chunk.data_flag_in,
+					chunk.nChan(), chunk.nStokes(), chunk.size());
+		problem.AddResidualBlock(cost_function, loss_function, &flux, &x0, &y0, &sigma, &flux_point_source);
+		problem.SetParameterLowerBound(&flux, 0, 0.);
+		problem.SetParameterLowerBound(&sigma, 0, 0.);
+		problem.SetParameterUpperBound(&sigma, 0,  M_PI/180./3600*15);
+		problem.SetParameterLowerBound(&flux_point_source, 0, 0.);
+	}
+	if(fixed_position)
+	{
+		problem.SetParameterBlockConstant(&x0);
+		problem.SetParameterBlockConstant(&y0);
+	}
+
 	delete[] u;
 	delete[] v;
 }

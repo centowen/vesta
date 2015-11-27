@@ -17,55 +17,75 @@
 //
 #include <iostream>
 #include "cuda_error.h"
+#include "GaussianCostFunctionCircularCuda.h"
 
-double* dev_u;
-double* dev_v;
-double* dev_size;
-double* dev_pos_real;
-double* dev_pos_imag;
-
-__global__ void cuEvaluate(double sigma, double x0, double y0, int nchan, int nstokes,
-                           double* u, double* v,
-                           double* size, double* pos_real, double* pos_imag)
+__global__ void cu_gaussian_size(double sigma, double x0, double y0,
+                                 const int nchan, const int nstokes, const int nrow,
+                                 double* u, double* v,
+                                 double* size)
 {
 	size_t chan = threadIdx.x;
-	size_t pol = blockIdx.x;
+	size_t pol = threadIdx.y;
+	size_t row = blockIdx.x;
 
-	if(chan < nchan and pol < nstokes)
+	if(chan < nchan and pol < nstokes and row < nrow)
 	{
-		size_t index = chan+pol*nchan;
+		size_t index = chan+pol*nchan+row*nchan*nstokes;
 		size[index] = exp(-2*M_PI*M_PI*(u[index]*u[index]+v[index]*v[index])*sigma*sigma);
+	}
+};
+
+__global__ void cu_pos(double sigma, double x0, double y0,
+                       const int nchan, const int nstokes, const int nrow,
+                       double* u, double* v,
+                       double* pos_real, double* pos_imag)
+{
+	size_t chan = threadIdx.x;
+	size_t pol = threadIdx.y;
+	size_t row = blockIdx.x;
+
+	if(chan < nchan and pol < nstokes and row < nrow)
+	{
+		size_t index = chan+pol*nchan+row*nchan*nstokes;
 		pos_real[index] = cos(-2*M_PI*(x0*u[index]+y0*v[index]));
 		pos_imag[index] = sin(-2*M_PI*(x0*u[index]+y0*v[index]));
 	}
 };
 
-void calc_functions(double sigma, double x0, double y0, int nchan, int nstokes,
+void calc_functions(double sigma, double x0, double y0,
+                    const int nchan, const int nstokes, const int nrow,
                     double* u, double* v,
-					double* size, double* pos_real, double* pos_imag)
+                    double* size, double* pos_real, double* pos_imag,
+					const DataContainer data)
 {
-	CudaSafeCall(cudaMemcpy( dev_u, u, sizeof(double)*nchan*nstokes, cudaMemcpyHostToDevice));
-	CudaSafeCall(cudaMemcpy( dev_v, v, sizeof(double)*nchan*nstokes, cudaMemcpyHostToDevice));
-	cuEvaluate<<<nchan, nstokes>>>(sigma, x0, y0, nchan, nstokes, dev_u, dev_v, dev_size, dev_pos_real, dev_pos_imag);
-	CudaSafeCall(cudaMemcpy(size, dev_size, sizeof(double)*nchan*nstokes, cudaMemcpyDeviceToHost));
-	CudaSafeCall(cudaMemcpy(pos_real, dev_pos_real, sizeof(double)*nchan*nstokes, cudaMemcpyDeviceToHost));
-	CudaSafeCall(cudaMemcpy(pos_imag, dev_pos_imag, sizeof(double)*nchan*nstokes, cudaMemcpyDeviceToHost));
+	CudaSafeCall(cudaMemcpy( data.u, u, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyHostToDevice));
+	CudaSafeCall(cudaMemcpy( data.v, v, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyHostToDevice));
+	dim3 dimBlock(nchan, nstokes);
+	dim3 dimGrid(nrow);
+	cu_gaussian_size<<<dimGrid, dimBlock>>>(sigma, x0, y0, nchan, nstokes, nrow,
+	                                        data.u, data.v, data.size);
+	cu_pos<<<dimGrid, dimBlock>>>(sigma, x0, y0, nchan, nstokes, nrow,
+	                              data.u, data.v, data.pos_real, data.pos_imag);
+
+	CudaSafeCall(cudaMemcpy(size, data.size, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
+	CudaSafeCall(cudaMemcpy(pos_real, data.pos_real, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
+	CudaSafeCall(cudaMemcpy(pos_imag, data.pos_imag, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
 }
 
-void allocate_stuff(const int nchan, const int nstokes)
+void allocate_stuff(const int nchan, const int nstokes, const int nrow, DataContainer& data)
 {
-	CudaSafeCall(cudaMalloc( (void**)&dev_u, sizeof(double)*nchan*nstokes));
-	CudaSafeCall(cudaMalloc( (void**)&dev_v, sizeof(double)*nchan*nstokes));
-	CudaSafeCall(cudaMalloc( (void**)&dev_size, sizeof(double)*nchan*nstokes));
-	CudaSafeCall(cudaMalloc( (void**)&dev_pos_real, sizeof(double)*nchan*nstokes));
-	CudaSafeCall(cudaMalloc( (void**)&dev_pos_imag, sizeof(double)*nchan*nstokes));
+	CudaSafeCall(cudaMalloc( (void**)&data.u, sizeof(double)*nchan*nstokes*nrow));
+	CudaSafeCall(cudaMalloc( (void**)&data.v, sizeof(double)*nchan*nstokes*nrow));
+	CudaSafeCall(cudaMalloc( (void**)&data.size, sizeof(double)*nchan*nstokes*nrow));
+	CudaSafeCall(cudaMalloc( (void**)&data.pos_real, sizeof(double)*nchan*nstokes*nrow));
+	CudaSafeCall(cudaMalloc( (void**)&data.pos_imag, sizeof(double)*nchan*nstokes*nrow));
 }
 
-void free_stuff()
+void free_stuff(DataContainer& data)
 {
-	CudaSafeCall(cudaFree( dev_u));
-	CudaSafeCall(cudaFree( dev_v));
-	CudaSafeCall(cudaFree( dev_size));
-	CudaSafeCall(cudaFree( dev_pos_real));
-	CudaSafeCall(cudaFree( dev_pos_imag));
+	CudaSafeCall(cudaFree( data.u));
+	CudaSafeCall(cudaFree( data.v));
+	CudaSafeCall(cudaFree( data.size));
+	CudaSafeCall(cudaFree( data.pos_real));
+	CudaSafeCall(cudaFree( data.pos_imag));
 }

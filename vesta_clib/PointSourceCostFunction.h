@@ -37,11 +37,12 @@ private:
 
 	int _nchan;
 	int _nstokes;
+	int _nrow;
 
 public:
 	PointSourceCostFunction(float* u, float* v, float* V_real, float* V_imag,
 	                     float* weights, int* flags,
-	                     int nchan, int nstokes);
+	                     int nchan, int nstokes, int nrow);
 	virtual ~PointSourceCostFunction();
 
 	virtual bool Evaluate(double const* const* parameters,

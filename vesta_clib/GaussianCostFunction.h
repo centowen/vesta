@@ -38,11 +38,12 @@ private:
 
 	int _nchan;
 	int _nstokes;
+	int _nrow;
 
 public:
 	GaussianCostFunction(float* u, float* v, float* V_real, float* V_imag,
 	                     float* weights, bool* flags,
-	                     int nchan, int nstokes);
+	                     const int nchan, const int nstokes, const int nrow);
 	virtual ~GaussianCostFunction();
 
 	virtual bool Evaluate(double const* const* parameters,

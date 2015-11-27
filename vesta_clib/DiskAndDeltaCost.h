@@ -37,11 +37,12 @@ private:
 
 	int _nchan;
 	int _nstokes;
+	int _nrow;
 
 public:
 	DiskAndDeltaCost(float* u, float* v, float* V_real, float* V_imag,
 	                     float* weights, int* flags,
-	                     int nchan, int nstokes);
+	                     const int nchan, const int nstokes, const int nrow);
 	virtual ~DiskAndDeltaCost();
 
 	virtual bool Evaluate(double const* const* parameters,
