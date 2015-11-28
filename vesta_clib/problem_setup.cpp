@@ -33,8 +33,7 @@ void add_residual_blocks(Problem& problem, string path,
                          double& flux_point_source,
 						 int model)
 {
-	Chunk chunk(100);
-// 	Chunk chunk(chunk_size);
+	Chunk chunk(chunk_size);
 // 	DataIO* data = new msio(path.c_str(), "", msio::col_corrected_data);
 	DataIO* data = new msio(path.c_str(), "", msio::col_corrected_data, true, "0");
 	while(data->readChunk(chunk))

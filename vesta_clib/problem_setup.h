@@ -34,7 +34,7 @@ const int mod_disk = 3;
 const int mod_disk_ps = 4;
 
 
-const int chunk_size = 1000000;
+const int chunk_size = 100;
 const float C_LIGHT = 299792458;
 
 

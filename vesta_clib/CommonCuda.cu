@@ -20,15 +20,17 @@
 #include "Chunk.h"
 
 const float C_LIGHT = 299792458;
+// Cuda kernel declarations./*{{{*/
 __global__ void sqrt_weights(float* weights, const int nchan, const int nstokes, const int nrow);
-__global__ void cu_gaussian_size(double sigma, double x0, double y0,
-                                 const int nchan, const int nstokes, const int nrow,
-                                 double* u, double* v,
-                                 double* size);
 __global__ void cu_evaluate_gaussian(float flux, float sigma, float x0, float y0,
                              const int nchan, const int nstokes, const int nrow,
 					         const VisDataContainer uvdata,
 							 float* residuals, float* jacobians);
+
+__global__ void cu_gaussian_size(double sigma, double x0, double y0,
+                                 const int nchan, const int nstokes, const int nrow,
+                                 double* u, double* v,
+                                 double* size);
 __global__ void cu_disk_size(double sigma, double x0, double y0,
                              const int nchan, const int nstokes, const int nrow,
                              double* u, double* v,
@@ -36,9 +38,9 @@ __global__ void cu_disk_size(double sigma, double x0, double y0,
 __global__ void cu_pos(double sigma, double x0, double y0,
                        const int nchan, const int nstokes, const int nrow,
                        double* u, double* v,
-                       double* pos_real, double* pos_imag);
+                       double* pos_real, double* pos_imag);/*}}}*/
 
-void allocate_stuff(const int nchan, const int nstokes, const int nrow, DataContainer& data)
+void allocate_stuff(const int nchan, const int nstokes, const int nrow, DataContainer& data)/*{{{*/
 {
 	CudaSafeCall(cudaMalloc( (void**)&data.u, sizeof(double)*nchan*nstokes*nrow));
 	CudaSafeCall(cudaMalloc( (void**)&data.v, sizeof(double)*nchan*nstokes*nrow));
@@ -46,11 +48,115 @@ void allocate_stuff(const int nchan, const int nstokes, const int nrow, DataCont
 	CudaSafeCall(cudaMalloc( (void**)&data.dsize_dsigma, sizeof(double)*nchan*nstokes*nrow));
 	CudaSafeCall(cudaMalloc( (void**)&data.pos_real, sizeof(double)*nchan*nstokes*nrow));
 	CudaSafeCall(cudaMalloc( (void**)&data.pos_imag, sizeof(double)*nchan*nstokes*nrow));
-}
+}/*}}}*/
+void free_stuff(DataContainer& data)/*{{{*/
+{
+	CudaSafeCall(cudaFree( data.u));
+	CudaSafeCall(cudaFree( data.v));
+	CudaSafeCall(cudaFree( data.size));
+	CudaSafeCall(cudaFree( data.dsize_dsigma));
+	CudaSafeCall(cudaFree( data.pos_real));
+	CudaSafeCall(cudaFree( data.pos_imag));
+}/*}}}*/
+void calc_gaussian(double sigma, double x0, double y0,/*{{{*/
+                   const int nchan, const int nstokes, const int nrow,
+                   double* u, double* v,
+                   double* size, double* pos_real, double* pos_imag,
+				   const DataContainer data)
+{
+	CudaSafeCall(cudaMemcpy( data.u, u, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyHostToDevice));
+	CudaSafeCall(cudaMemcpy( data.v, v, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyHostToDevice));
+	dim3 dimBlock(nchan, nstokes);
+	dim3 dimGrid(nrow);
+	cu_gaussian_size<<<dimGrid, dimBlock>>>(sigma, x0, y0, nchan, nstokes, nrow,
+	                                        data.u, data.v, data.size);
+	cu_pos<<<dimGrid, dimBlock>>>(sigma, x0, y0, nchan, nstokes, nrow,
+	                              data.u, data.v, data.pos_real, data.pos_imag);
 
+	CudaSafeCall(cudaMemcpy(size, data.size, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
+	CudaSafeCall(cudaMemcpy(pos_real, data.pos_real, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
+	CudaSafeCall(cudaMemcpy(pos_imag, data.pos_imag, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
+}/*}}}*/
+void calc_disk(double sigma, double x0, double y0,/*{{{*/
+               const int nchan, const int nstokes, const int nrow,
+               double* u, double* v,
+               double* size, double* dsize_dsigma, double* pos_real, double* pos_imag,
+			   const DataContainer data)
+{
+	CudaSafeCall(cudaMemcpy( data.u, u, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyHostToDevice));
+	CudaSafeCall(cudaMemcpy( data.v, v, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyHostToDevice));
+	dim3 dimBlock(nchan, nstokes);
+	dim3 dimGrid(nrow);
+	cu_disk_size<<<dimGrid, dimBlock>>>(sigma, x0, y0, nchan, nstokes, nrow,
+	                                        data.u, data.v, data.size, data.dsize_dsigma);
+	cu_pos<<<dimGrid, dimBlock>>>(sigma, x0, y0, nchan, nstokes, nrow,
+	                              data.u, data.v, data.pos_real, data.pos_imag);
 
+	CudaSafeCall(cudaMemcpy(size, data.size, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
+	CudaSafeCall(cudaMemcpy(dsize_dsigma, data.dsize_dsigma, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
+	CudaSafeCall(cudaMemcpy(pos_real, data.pos_real, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
+	CudaSafeCall(cudaMemcpy(pos_imag, data.pos_imag, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
+}/*}}}*/
+__global__ void cu_gaussian_size(double sigma, double x0, double y0,/*{{{*/
+                                 const int nchan, const int nstokes, const int nrow,
+                                 double* u, double* v,
+                                 double* size)
+{
+	size_t chan = threadIdx.x;
+	size_t pol = threadIdx.y;
+	size_t row = blockIdx.x;
+
+	if(chan < nchan and pol < nstokes and row < nrow)
+	{
+		size_t index = chan+pol*nchan+row*nchan*nstokes;
+		size[index] = exp(-2*M_PI*M_PI*(u[index]*u[index]+v[index]*v[index])*sigma*sigma);
+	}
+}/*}}}*/
+__global__ void cu_pos(double sigma, double x0, double y0,/*{{{*/
+                       const int nchan, const int nstokes, const int nrow,
+                       double* u, double* v,
+                       double* pos_real, double* pos_imag)
+{
+	size_t chan = threadIdx.x;
+	size_t pol = threadIdx.y;
+	size_t row = blockIdx.x;
+
+	if(chan < nchan and pol < nstokes and row < nrow)
+	{
+		size_t index = chan+pol*nchan+row*nchan*nstokes;
+		pos_real[index] = cos(-2*M_PI*(x0*u[index]+y0*v[index]));
+		pos_imag[index] = sin(-2*M_PI*(x0*u[index]+y0*v[index]));
+	}
+}/*}}}*/
+__global__ void cu_disk_size(double sigma, double x0, double y0,/*{{{*/
+                             const int nchan, const int nstokes, const int nrow,
+                             double* u, double* v,
+                             double* size, double* dsize_dsigma)
+{
+	size_t chan = threadIdx.x;
+	size_t pol = threadIdx.y;
+	size_t row = blockIdx.x;
+
+	if(chan < nchan and pol < nstokes and row < nrow)
+	{
+		size_t index = chan+pol*nchan+row*nchan*nstokes;
+		double uvdist = sqrt(u[index]*u[index]+v[index]*v[index]);
+		if(sigma*uvdist < 1e-12)
+		{
+			size[index] = .5;
+			dsize_dsigma[index] = 0.;
+		}
+		else
+		{
+			size[index] = 1/M_PI*j1(2*M_PI*sigma*uvdist)/sigma/uvdist;
+			dsize_dsigma[index] = 2/M_PI*(M_PI*j0(2*M_PI*sigma*uvdist)/sigma -
+					j1(2*M_PI*sigma*uvdist)/sigma/sigma/uvdist);
+		}
+	}
+}/*}}}*/
+
+void setup_uvdata(Chunk& chunk, VisDataContainer& dev_uvdata)/*{{{*/
 // Allocate space for uv data on device and copy data over.
-void setup_uvdata(Chunk& chunk, VisDataContainer& dev_uvdata)
 {
 	dev_uvdata.nchan = chunk.nChan();
 	dev_uvdata.nstokes = chunk.nStokes();
@@ -96,60 +202,22 @@ void setup_uvdata(Chunk& chunk, VisDataContainer& dev_uvdata)
 	CudaSafeCall(cudaMemcpy(dev_uvdata.sqrt_weights, chunk.weight_in, size, cudaMemcpyHostToDevice));
 	dim3 dimBlock(dev_uvdata.nchan, dev_uvdata.nstokes);
 	dim3 dimGrid(dev_uvdata.nrow);
-// 	sqrt_weights<<<dimGrid, dimBlock>>>(dev_uvdata.sqrt_weights,
-// 	                                    dev_uvdata.nchan, dev_uvdata.nstokes, dev_uvdata.nrow);
+	sqrt_weights<<<dimGrid, dimBlock>>>(dev_uvdata.sqrt_weights,
+	                                    dev_uvdata.nchan, dev_uvdata.nstokes, dev_uvdata.nrow);
 	CudaSafeCall(cudaMemcpy(dev_uvdata.V_real, chunk.data_real_in, size, cudaMemcpyHostToDevice));
 	CudaSafeCall(cudaMemcpy(dev_uvdata.V_imag, chunk.data_imag_in, size, cudaMemcpyHostToDevice));
 
 	size = sizeof(int)*dev_uvdata.nrow*dev_uvdata.nstokes*dev_uvdata.nchan;
 	CudaSafeCall(cudaMalloc((void**)&dev_uvdata.flag, size));
 	CudaSafeCall(cudaMemcpy(dev_uvdata.flag, chunk.data_flag_in, size, cudaMemcpyHostToDevice));
-}
-
-void free_uvdata(VisDataContainer& dev_uvdata)
-{
-	CudaSafeCall(cudaFree(dev_uvdata.u));
-	CudaSafeCall(cudaFree(dev_uvdata.v));
-	CudaSafeCall(cudaFree(dev_uvdata.w));
-	CudaSafeCall(cudaFree(dev_uvdata.sqrt_weights));
-	CudaSafeCall(cudaFree(dev_uvdata.V_real));
-	CudaSafeCall(cudaFree(dev_uvdata.V_imag));
-	CudaSafeCall(cudaFree(dev_uvdata.flag));
-}
-
-__global__ void sqrt_weights(float* weights, const int nchan, const int nstokes, const int nrow)
-{
-	size_t chan = threadIdx.x;
-	size_t pol = threadIdx.y;
-	size_t row = blockIdx.x;
-
-	if(chan < nchan and pol < nstokes and row < nrow)
-	{
-		size_t index = chan+pol*nchan+row*nchan*nstokes;
-		if(weights[index] != 0)
-			weights[index] = sqrt(weights[index]);
-	}
-}
-
-void free_stuff(DataContainer& data)
-{
-	CudaSafeCall(cudaFree( data.u));
-	CudaSafeCall(cudaFree( data.v));
-	CudaSafeCall(cudaFree( data.size));
-	CudaSafeCall(cudaFree( data.dsize_dsigma));
-	CudaSafeCall(cudaFree( data.pos_real));
-	CudaSafeCall(cudaFree( data.pos_imag));
-}
-
-void evaluate_gaussian(float flux, float sigma, float x0, float y0,
+}/*}}}*/
+void evaluate_gaussian(float flux, float sigma, float x0, float y0,/*{{{*/
                        const int nchan, const int nstokes, const int nrow,
 					   const VisDataContainer uvdata,
 					   float* residuals, float** jacobians)
 {
 	dim3 dimBlock(uvdata.nchan, uvdata.nstokes);
 	dim3 dimGrid(uvdata.nrow);
-// 	dim3 dimBlock(nchan, nstokes);
-// 	dim3 dimGrid(nrow);
 	
 	// setup storage for resiudals and jacobians
 	float* dev_residuals;
@@ -194,54 +262,18 @@ void evaluate_gaussian(float flux, float sigma, float x0, float y0,
 	CudaSafeCall(cudaFree(dev_residuals));
 	if(dev_jacobians != NULL)
 		CudaSafeCall(cudaFree(dev_jacobians));
-}
-
-void calc_gaussian(double sigma, double x0, double y0,
-                   const int nchan, const int nstokes, const int nrow,
-                   double* u, double* v,
-                   double* size, double* pos_real, double* pos_imag,
-				   const DataContainer data)
+}/*}}}*/
+void free_uvdata(VisDataContainer& dev_uvdata)/*{{{*/
 {
-	CudaSafeCall(cudaMemcpy( data.u, u, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyHostToDevice));
-	CudaSafeCall(cudaMemcpy( data.v, v, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyHostToDevice));
-	dim3 dimBlock(nchan, nstokes);
-	dim3 dimGrid(nrow);
-	cu_gaussian_size<<<dimGrid, dimBlock>>>(sigma, x0, y0, nchan, nstokes, nrow,
-	                                        data.u, data.v, data.size);
-	cu_pos<<<dimGrid, dimBlock>>>(sigma, x0, y0, nchan, nstokes, nrow,
-	                              data.u, data.v, data.pos_real, data.pos_imag);
-
-	CudaSafeCall(cudaMemcpy(size, data.size, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
-	CudaSafeCall(cudaMemcpy(pos_real, data.pos_real, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
-	CudaSafeCall(cudaMemcpy(pos_imag, data.pos_imag, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
-}
-
-
-void calc_disk(double sigma, double x0, double y0,
-               const int nchan, const int nstokes, const int nrow,
-               double* u, double* v,
-               double* size, double* dsize_dsigma, double* pos_real, double* pos_imag,
-			   const DataContainer data)
-{
-	CudaSafeCall(cudaMemcpy( data.u, u, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyHostToDevice));
-	CudaSafeCall(cudaMemcpy( data.v, v, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyHostToDevice));
-	dim3 dimBlock(nchan, nstokes);
-	dim3 dimGrid(nrow);
-	cu_disk_size<<<dimGrid, dimBlock>>>(sigma, x0, y0, nchan, nstokes, nrow,
-	                                        data.u, data.v, data.size, data.dsize_dsigma);
-	cu_pos<<<dimGrid, dimBlock>>>(sigma, x0, y0, nchan, nstokes, nrow,
-	                              data.u, data.v, data.pos_real, data.pos_imag);
-
-	CudaSafeCall(cudaMemcpy(size, data.size, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
-	CudaSafeCall(cudaMemcpy(dsize_dsigma, data.dsize_dsigma, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
-	CudaSafeCall(cudaMemcpy(pos_real, data.pos_real, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
-	CudaSafeCall(cudaMemcpy(pos_imag, data.pos_imag, sizeof(double)*nchan*nstokes*nrow, cudaMemcpyDeviceToHost));
-}
-
-__global__ void cu_gaussian_size(double sigma, double x0, double y0,
-                                 const int nchan, const int nstokes, const int nrow,
-                                 double* u, double* v,
-                                 double* size)
+	CudaSafeCall(cudaFree(dev_uvdata.u));
+	CudaSafeCall(cudaFree(dev_uvdata.v));
+	CudaSafeCall(cudaFree(dev_uvdata.w));
+	CudaSafeCall(cudaFree(dev_uvdata.sqrt_weights));
+	CudaSafeCall(cudaFree(dev_uvdata.V_real));
+	CudaSafeCall(cudaFree(dev_uvdata.V_imag));
+	CudaSafeCall(cudaFree(dev_uvdata.flag));
+}/*}}}*/
+__global__ void sqrt_weights(float* weights, const int nchan, const int nstokes, const int nrow)/*{{{*/
 {
 	size_t chan = threadIdx.x;
 	size_t pol = threadIdx.y;
@@ -250,29 +282,11 @@ __global__ void cu_gaussian_size(double sigma, double x0, double y0,
 	if(chan < nchan and pol < nstokes and row < nrow)
 	{
 		size_t index = chan+pol*nchan+row*nchan*nstokes;
-		size[index] = exp(-2*M_PI*M_PI*(u[index]*u[index]+v[index]*v[index])*sigma*sigma);
+		if(weights[index] > 1e-12)
+			weights[index] = sqrt(weights[index]);
 	}
-}
-
-__global__ void cu_pos(double sigma, double x0, double y0,
-                       const int nchan, const int nstokes, const int nrow,
-                       double* u, double* v,
-                       double* pos_real, double* pos_imag)
-{
-	size_t chan = threadIdx.x;
-	size_t pol = threadIdx.y;
-	size_t row = blockIdx.x;
-
-	if(chan < nchan and pol < nstokes and row < nrow)
-	{
-		size_t index = chan+pol*nchan+row*nchan*nstokes;
-		pos_real[index] = cos(-2*M_PI*(x0*u[index]+y0*v[index]));
-		pos_imag[index] = sin(-2*M_PI*(x0*u[index]+y0*v[index]));
-	}
-}
-
-
-__global__ void cu_evaluate_gaussian(float flux, float sigma, float x0, float y0,
+}/*}}}*/
+__global__ void cu_evaluate_gaussian(float flux, float sigma, float x0, float y0,/*{{{*/
                              const int nchan, const int nstokes, const int nrow,
 					         const VisDataContainer uvdata,
 							 float* residuals, float* jacobians)
@@ -342,30 +356,4 @@ __global__ void cu_evaluate_gaussian(float flux, float sigma, float x0, float y0
 			}
 		}
 	}
-}
-__global__ void cu_disk_size(double sigma, double x0, double y0,
-                             const int nchan, const int nstokes, const int nrow,
-                             double* u, double* v,
-                             double* size, double* dsize_dsigma)
-{
-	size_t chan = threadIdx.x;
-	size_t pol = threadIdx.y;
-	size_t row = blockIdx.x;
-
-	if(chan < nchan and pol < nstokes and row < nrow)
-	{
-		size_t index = chan+pol*nchan+row*nchan*nstokes;
-		double uvdist = sqrt(u[index]*u[index]+v[index]*v[index]);
-		if(sigma*uvdist < 1e-12)
-		{
-			size[index] = .5;
-			dsize_dsigma[index] = 0.;
-		}
-		else
-		{
-			size[index] = 1/M_PI*j1(2*M_PI*sigma*uvdist)/sigma/uvdist;
-			dsize_dsigma[index] = 2/M_PI*(M_PI*j0(2*M_PI*sigma*uvdist)/sigma -
-					j1(2*M_PI*sigma*uvdist)/sigma/sigma/uvdist);
-		}
-	}
-}
+}/*}}}*/
